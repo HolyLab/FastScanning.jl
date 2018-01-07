@@ -1,1 +1,9 @@
 julia 0.6
+Unitful
+AxisArrays
+Images
+ImagineInterface
+ImagineProcedures
+ImagineCalibrate
+BlockRegistrationScheduler
+ProgressMeter
