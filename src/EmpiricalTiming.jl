@@ -9,6 +9,6 @@ include("slicetiming_analysis.jl")
 include("slicetiming_generate.jl")
 include("experiments.jl")
 
-export pos_mon_lag_experiment, slicetiming_experiment
+export get_cyc_pulses, pos_mon_lag_experiment, slicetiming_experiment
 
 end # module

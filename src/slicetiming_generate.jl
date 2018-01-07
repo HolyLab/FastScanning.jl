@@ -92,6 +92,32 @@ function get_trial(ctr_i, lag, sample_rate, nsamps_exp, nsamps_flash, nsamps_swe
 	return cam_samps, las_samps, shift
 end
 
+#given a measured piezo cycle, a set of desired slice locations `slice_zs`, and a set of forward and reverse lags,
+#return a tuple (cam_samps, las_samps) with sample vectors for controlling camera exposure and laser pulsing
+function get_cyc_pulses(mon_cyc, slice_zs, fwd_lags, back_lags, sample_rate::HasInverseTimeUnits)
+    @assert iseven(length(mon_cyc))
+    nsamps_sweep = div(length(mon_cyc,2))
+    cams_fwd = ClosedInterval{Int}[]
+    cams_back = ClosedInterval{Int}[]
+    lasers_fwd = ClosedInterval{Int}[]
+    lasers_back = ClosedInterval{Int}[]
+    nslices = length(slice_zs)
+    for s = 1:nslices
+        ctr_fwd, ctr_back = find_bidi_locations(mon_cyc, sample_rate, slice_zs[s])
+        cam_fwd, las_fwd, fwd_shift = get_trial_intervals(ctr_fwd, fwd_lags[s], sample_rate, nsamps_exp, nsamps_flash, nsamps_sweep, true)
+        if fwd_shift!=0 error("fwd_shift = $fwd_shift for slice $s.  Can't handle this yet. Try reducing exposure time or circular shifting the input cycle temporarily") end
+        cam_back, las_back, back_shift = get_trial_intervals(ctr_back, back_lags[s], sample_rate, nsamps_exp, nsamps_flash, nsamps_sweep, false)
+        if back_shift!=0 error("back_shift = $back_shift for slice $s.  Can't handle this yet. Try reducing exposure time or circular shifting the input cycle temporarily") end
+        push!(cams_fwd, cam_fwd)
+        push!(cams_back, cam_back)
+        push!(lasers_fwd, las_fwd)
+        push!(lasers_back, las_back)
+    end
+    las_samps = ImagineInterface.gen_pulses(nsamps_sweep, vcat(lasers_fwd, lasers_back))
+    cam_samps = ImagineInterface.gen_pulses(nsamps_sweep, vcat(cams_fwd, cams_back))
+    return cam_samps, las_samps
+end
+
 function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_time; freq=0.2Hz) #appends a stack sequence to each signal input. Images only on the forward sweep.
     #pad by 5μm if we have room
     z_min = minimum(slice_zs)
