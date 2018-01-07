@@ -138,7 +138,7 @@ function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_tim
     append!(pos, "pos_template", mod_cyc)
     append!(cam, "cam_template", cam_cyc)
     append!(las, "las_template", flash_cyc)
-    append!(high_las, "highlas_template", falses(length(mod_cyc)))
+    append!(high_las, "highlas_template", trues(length(mod_cyc)))
 end
 
 function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, lags, slice_zs) where {T1<:ImagineSignal}
