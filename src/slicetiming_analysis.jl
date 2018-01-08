@@ -57,7 +57,7 @@ function best_lag(target, testimgs, lags)
 	maxradians = pi/10
 	rgridsz = 7
 	mxshift = (20,20)
-    alg = RigidGridStart(copy(target), maxradians, rgridsz, mxshift; print_level=5, max_iter=200)
+    alg = RigidGridStart(copy(target), maxradians, rgridsz, mxshift; print_level=0, max_iter=100)
     for i = 1:length(lags)
         moving = squeeze(mean(view(testimgs, :, :, (i-1)*ntrials+1:i*ntrials), 3),3)
 		mon = monitor(alg, ())
