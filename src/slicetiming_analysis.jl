@@ -47,6 +47,18 @@ function slicetimings(img, lags, mon_cyc, nslices::Int)
     return fwd_timings, back_timings
 end
 
+function align2d(fixed, moving; thresh_fac=0.9)
+    maxradians = pi/10
+	rgridsz = 7
+	mxshift = (20,20)
+    alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
+    mon = monitor(alg, ())
+    mon[:tform] = nothing
+    mon[:mismatch] = 0.0
+    mon = driver(alg, moving, mon)
+    return mon[:tform], mon[:mismatch]
+end
+
 #best_lag may be a misnomer here because the lag we choose doesn't correspond with the sensor lag and it's not observed to be
 #consistent per-slice.  It depends on so many factors that we just do it emprically.
 function best_lag(target, testimgs, lags)
@@ -54,17 +66,9 @@ function best_lag(target, testimgs, lags)
     ntrials = convert(Int, size(testimgs,3) / nlags)
     bestlag = lags[1]
     best_mm = Inf
-	maxradians = pi/10
-	rgridsz = 7
-	mxshift = (20,20)
-    alg = RigidGridStart(copy(target), maxradians, rgridsz, mxshift; print_level=0, max_iter=100)
     for i = 1:length(lags)
         moving = squeeze(mean(view(testimgs, :, :, (i-1)*ntrials+1:i*ntrials), 3),3)
-		mon = monitor(alg, ())
-		mon[:tform] = nothing
-		mon[:mismatch] = 0.0
-		mon = driver(alg, moving, mon)
-		mm = mon[:mismatch]
+        tform, mm = align2d(copy(target), moving)
 		if mm < best_mm
 			best_mm = mm
 			bestlag = lags[i]
