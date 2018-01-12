@@ -1,11 +1,12 @@
 module EmpiricalTiming
 
-using Unitful, ImagineInterface, ImagineAnalyses, ImagineProcedures, Images, ProgressMeter
+using Unitful, ImagineInterface, ImagineAnalyses, ImagineProcedures, Images, AffineTransforms, ProgressMeter
 using BlockRegistrationScheduler #for tweaking imperfect 2D alignment of slices
 
 import Unitful:s, Hz, μm, V
 
 include("slicetiming_analysis.jl")
+include("bsearch.jl")
 include("slicetiming_generate.jl")
 include("experiments.jl")
 
