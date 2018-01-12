@@ -19,10 +19,10 @@ end
 
 function fake_slicetiming_run(nconditions, ntrials, nslices, best_conds_fwd, best_conds_back)
     @assert nslices == length(best_conds_fwd) == length(best_conds_back)
-    output = zeros(2,2,2*nconditions*ntrials*nslices + nslices)
+    output = zeros(30,30,2*nconditions*ntrials*nslices + nslices)
     output_fwd = view(output, :,:,nslices+1:2:size(output,3))
     output_back = view(output, :,:,nslices+2:2:size(output,3))
-    template =rand(2,2,nslices)
+    template =rand(30,30,nslices)
     output[:,:,1:nslices] = template
     for i = 1:nslices
         fwd_sub = view(output_fwd, :,:,1+(i-1)*nconditions*ntrials:i*nconditions*ntrials)

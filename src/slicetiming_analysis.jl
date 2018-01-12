@@ -23,34 +23,41 @@ end
 #NOTE: the timings returned here are additional offsets relative to any lag already applied with a Calibration when 
 #generating the command signals.
 
-function slicetimings(img, lags, mon_cyc, nslices::Int)
+function slicetimings(img, toffsets, mon_cyc, nslices::Int)
     @assert ndims(img) == 3 # should be stored by Imagine as a 2D timeseries
     #first set of images is always the target / template image
     target = img[:,:,1:nslices]
     testimgs = view(img, :, :, (nslices+1):size(img,3))
     fwdimgs = view(testimgs, :, :, 1:2:size(testimgs,3))
     backimgs = view(testimgs, :, :, 2:2:size(testimgs,3))
-    nlags =length(lags)
-    ntrials = convert(Int, size(fwdimgs,3) / (nlags*nslices))
-    fwd_timings = eltype(lags)[]
-    back_timings = eltype(lags)[]
+    ntoffsets =length(toffsets)
+    ntrials = convert(Int, size(fwdimgs,3) / (ntoffsets*nslices))
+    fwd_timings = eltype(toffsets)[]
+    back_timings = eltype(toffsets)[]
     @showprogress for i = 1:nslices
+        @show i
         fixed = view(target, :, :, i)
-        fwd_lag, fwd_mm = best_lag(fixed, view(fwdimgs, :, :, (i-1)*(ntrials*nlags)+1:i*(ntrials*nlags)), lags)
-        push!(fwd_timings, fwd_lag)
-        back_lag, back_mm = best_lag(fixed, view(backimgs, :, :, (i-1)*(ntrials*nlags)+1:i*(ntrials*nlags)), lags)
-        push!(back_timings, back_lag)
+        movfwd = view(fwdimgs, :, :, (i-1)*(ntrials*ntoffsets)+1:i*(ntrials*ntoffsets))
+        ftfms, fmms = toffset_fits(fixed, movfwd, toffsets)
+        @show fwd_toffset = toffsets[indmin(fmms)]
+        @show fwd_mm = minimum(fmms)
+        push!(fwd_timings, fwd_toffset)
+        movback = view(backimgs, :, :, (i-1)*(ntrials*ntoffsets)+1:i*(ntrials*ntoffsets))
+        btfms, bmms = toffset_fits(fixed, movback, toffsets)
+        @show back_toffset = toffsets[indmin(bmms)]
+        @show back_mm = minimum(bmms)
+        push!(back_timings, back_toffset)
         print("Slice $i complete\n")
-        @show fwd_mm
-        @show back_mm
     end
     return fwd_timings, back_timings
 end
 
-function align2d(fixed, moving; thresh_fac=0.9)
-    maxradians = pi/10
-	rgridsz = 7
-	mxshift = (20,20)
+function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0))
+    maxradians = pi/20
+    rgridsz = 7
+    mxshift = (10,10)
+    moving = imfilter(Float64.(moving), KernelFactors.IIRGaussian(Float64, sigmas))
+    fixed = imfilter(Float64.(fixed), KernelFactors.IIRGaussian(Float64, sigmas))
     alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
     mon = monitor(alg, ())
     mon[:tform] = nothing
@@ -59,24 +66,19 @@ function align2d(fixed, moving; thresh_fac=0.9)
     return mon[:tform], mon[:mismatch]
 end
 
-#best_lag may be a misnomer here because the lag we choose doesn't correspond with the sensor lag and it's not observed to be
 #consistent per-slice.  It depends on so many factors that we just do it emprically.
-function best_lag(target, testimgs, lags)
-    nlags = length(lags)
-    ntrials = convert(Int, size(testimgs,3) / nlags)
-    bestlag = lags[1]
-    best_mm = Inf
-    for i = 1:length(lags)
-        moving = squeeze(mean(view(testimgs, :, :, (i-1)*ntrials+1:i*ntrials), 3),3)
-        tform, mm = align2d(copy(target), moving)
-		if mm < best_mm
-			best_mm = mm
-			bestlag = lags[i]
-		end
+function toffset_fits(target, testimgs, toffsets; sigmas=(1.0,1.0))
+    ntoffsets = length(toffsets)
+    ntrials = convert(Int, size(testimgs,3) / ntoffsets)
+    tfms = AffineTransform[]
+    mms = Float64[]
+    for i = 1:length(toffsets)
+        moving = squeeze(mean(Float64.(view(testimgs, :, :, (i-1)*ntrials+1:i*ntrials)), 3),3)
+        tfm, mm = align2d(target, moving; sigmas=sigmas)
+        push!(tfms, tfm)
+        push!(mms, mm)
 	end
-	@show best_mm
-	@show bestlag
-	return bestlag, best_mm
+	return tfms, mms
 end
 
 function find_bidi_centers(cyc::AbstractVector, sampr::HasInverseTimeUnits)
