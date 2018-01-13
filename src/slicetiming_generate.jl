@@ -94,9 +94,10 @@ end
 
 #given a measured piezo cycle, a set of desired slice locations `slice_zs`, and a set of forward and reverse lags,
 #return a tuple (cam_samps, las_samps) with sample vectors for controlling camera exposure and laser pulsing
+#TODO: this isn't getting used
 function get_cyc_pulses(mon_cyc, slice_zs, fwd_lags, back_lags, sample_rate::HasInverseTimeUnits)
     @assert iseven(length(mon_cyc))
-    nsamps_sweep = div(length(mon_cyc,2))
+    nsamps_sweep = div(length(mon_cyc),2)
     cams_fwd = ClosedInterval{Int}[]
     cams_back = ClosedInterval{Int}[]
     lasers_fwd = ClosedInterval{Int}[]
@@ -199,8 +200,12 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
 			add_sequence!(las, fwd_flash_name, fwd_flash)
             #if timeshifts are nonzero then the imaging pulses lie partially outside the cycle and we need an extra cycle or two.
             if timeshift_fwd != 0
+                @show s
+                @show l
                 error("timeshift_fwd = $timeshift_fwd")
             elseif timeshift_back != 0
+                @show s
+                @show l
                 error("timeshift_back = $timeshift_back")
             end
 #            if timeshift_fwd < 0
