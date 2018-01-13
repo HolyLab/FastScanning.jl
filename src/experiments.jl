@@ -29,7 +29,7 @@ end
 
 function slicetiming_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractString, cam_name::AbstractString, slice_zs)
     #@show lags = [0.0002s:0.00005s:0.0007s...]  #These worked to find the lag on the analog piezo of OCPI2
-    @show lags = [0.0005s:0.00005s:0.0012s...] #These worked to find the lag on the digital piezo of OCPI2
+    @show lags = [0.0000s:0.00005s:0.0012s...] #These worked to find the lag on the digital piezo of OCPI2
     gen_desc = "Generate a set camera and laser commands to find slice timings empirically given a completed dynamic positioner recording"
     sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, lags, slice_zs))
     desc = "Returns slice timings to align forward and reverse stacks at the desired spacing for high-speed volume acquisitions"
