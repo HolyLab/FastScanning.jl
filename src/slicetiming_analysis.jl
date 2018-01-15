@@ -53,9 +53,9 @@ function slicetimings(img, toffsets, mon_cyc, nslices::Int)
 end
 
 function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0))
-    maxradians = pi/20
+    maxradians = pi/90
     rgridsz = 7
-    mxshift = (10,10)
+    mxshift = (16,16)
     moving = imfilter(Float64.(moving), KernelFactors.IIRGaussian(Float64, sigmas))
     fixed = imfilter(Float64.(fixed), KernelFactors.IIRGaussian(Float64, sigmas))
     alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)

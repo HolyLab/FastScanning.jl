@@ -18,7 +18,7 @@ append!(pos_mon, "fake_samps", fake_samps) #perfect with no lag
 pr = slicetiming_experiment(coms, [pos_mon;], "488nm laser", "camera1", z_spacing, z_pad)
 st_coms = outputs(pr)
 
-lags = [0.0005s:0.00005s:0.0012s...] #note: must match what's in experiments.jl
+lags = [0.0000s:0.00005s:0.0012s...] #note: must match what's in experiments.jl
 nconditions = length(lags)
 slice_zs = ImagineInterface.slice_positions(pstart, pstop, z_spacing, z_pad)
 nslices = length(slice_zs)
