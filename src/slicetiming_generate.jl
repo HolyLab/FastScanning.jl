@@ -29,12 +29,12 @@ function pos_commands(rig::AbstractString, pos_name::AbstractString, mod_cyc, nc
 end
 
 function append_warmup!(pos, cam, las, high_las, pos_cycle, ncycs_warmup)
-    nsamps_cycle = Base.length(pos_cycle) #should always be even
-    add_sequence!(cam, "cam_warmup", falses(nsamps_cycle))
-    add_sequence!(las, "las_warmup", falses(nsamps_cycle))
+    nsamps_cyc = Base.length(pos_cycle) #should always be even
+    add_sequence!(cam, "cam_warmup", falses(nsamps_cyc))
+    add_sequence!(las, "las_warmup", falses(nsamps_cyc))
     add_sequence!(pos, "pos_warmup", pos_cycle)
     if rig_name(pos) == "ocpi-2"
-        add_sequence!(high_las, "high_las_warmup", trues(nsamps_cycle))
+        add_sequence!(high_las, "high_las_warmup", trues(nsamps_cyc))
     end
     for i = 1:ncycs_warmup
         append!(pos, "pos_warmup")
@@ -139,9 +139,9 @@ function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_tim
 end
 
 function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, lags, slice_zs) where {T1<:ImagineSignal}
-    nsamps_cycle = Base.length(mod_cyc) #should always be even
-    nsamps_sweep = div(nsamps_cycle,2)
-    ncycs_ignore = ceil(Int, (ustrip(samprate(pos))*5) / nsamps_cycle) #5 seconds of warmup
+    nsamps_cyc = Base.length(mod_cyc) #should always be even
+    nsamps_sweep = div(nsamps_cyc,2)
+    ncycs_ignore = ceil(Int, (ustrip(samprate(pos))*5) / nsamps_cyc) #5 seconds of warmup
     #@show nsamps_offset = mon_lag_nsamps(mod_cyc, mon_cyc)
     @show nsamps_offset = ImagineAnalyses.mon_delay(mod_cyc, mon_cyc)
 	#temporal shift to make calculations easier (will shift things back later)
@@ -171,13 +171,13 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
 	# several fast "warmup" piezo cycles with no camera / laser activity (ncycs_ignore)
 	# ntrials * nlags piezo cycles in which we take a pair of slices for each cycle
 	# repeat above step for each slice, so a total of ntrials * nlags * nslices cycles (and twice that many images)
-    ncycs_ignore = ceil(Int, (ustrip(samprate(pos))*5) / nsamps_cycle) #5 seconds of warmup
+    ncycs_ignore = ceil(Int, (ustrip(samprate(pos))*5) / nsamps_cyc) #5 seconds of warmup
 	append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_time) #appends slow stack sequence to each signal input
 	append_warmup!(pos, cam, las, high_las, mod_cyc, ncycs_ignore) #note: the warmup cycles are named differently but sequence is same as other fast pos cycles
     
     pos_cyc_name = "fast_pos_cyc"
 	add_sequence!(pos, pos_cyc_name, mod_cyc)
-	add_sequence!(high_las, "laser_high", trues(nsamps_cycle)) #will append one of these for every cycle as we go
+	add_sequence!(high_las, "laser_high", trues(nsamps_cyc)) #will append one of these for every cycle as we go
 	#Now iterate through slices, lags, and trials
 	for s = 1:length(slice_zs)
 		fwd_ctr, back_ctr = find_bidi_locations(mon_cyc, samprate(pos), slice_zs[s])
@@ -192,26 +192,26 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
             if timeshift < 0
                 warn("Adding an extra piezo cycle in slice $s with lag $l for exposures or flashes that begin before the cycle")
                 has_partial = true
-                add_sequence!(cam, "cam_partial_before_$s_$l", falses(nsamps_cyc+timeshift))
-                add_sequence!(las, "las_partial_before_$s_$l", falses(nsamps_cyc+timeshift))
-                add_sequence!(cam, "cam_partial_after_$s_$l",  falses(-timeshift))
-                add_sequence!(las, "las_partial_after_$s_$l",  falses(-timeshift))
+                add_sequence!(cam, "cam_partial_before_$(s)_$(l)", falses(nsamps_cyc+timeshift))
+                add_sequence!(las, "las_partial_before_$(s)_$(l)", falses(nsamps_cyc+timeshift))
+                add_sequence!(cam, "cam_partial_after_$(s)_$(l)",  falses(-timeshift))
+                add_sequence!(las, "las_partial_after_$(s)_$(l)",  falses(-timeshift))
                 @show s
                 @show l
             elseif timeshift > 0
                 has_partial = true
                 warn("Adding an extra piezo cycle in slice $s with lag $l for exposures or flashes that end after the cycle")
-                add_sequence!(cam, "cam_partial_before_$s_$l", falses(timeshift))
-                add_sequence!(las, "las_partial_before_$s_$l", falses(timeshift))
-                add_sequence!(cam, "cam_partial_after_$s_$l", falses(nsamps_cyc-timeshift))
-                add_sequence!(las, "las_partial_after_$s_$l", falses(nsamps_cyc-timeshift))
+                add_sequence!(cam, "cam_partial_before_$(s)_$(l)", falses(timeshift))
+                add_sequence!(las, "las_partial_before_$(s)_$(l)", falses(timeshift))
+                add_sequence!(cam, "cam_partial_after_$(s)_$(l)", falses(nsamps_cyc-timeshift))
+                add_sequence!(las, "las_partial_after_$(s)_$(l)", falses(nsamps_cyc-timeshift))
                 @show s
                 @show l
             end
             if has_partial
                 append!(pos, pos_cyc_name)
-                append!(cam, "cam_partial_before_$s_$l")
-                append!(las, "las_partial_before_$s_$l")
+                append!(cam, "cam_partial_before_$(s)_$(l)")
+                append!(las, "las_partial_before_$(s)_$(l)")
                 append!(high_las, "laser_high")
             end
 			for t = 1:ntrials
@@ -221,16 +221,16 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
 				append!(high_las, "laser_high")
 			end
             if has_partial
-                append!(cam, "cam_partial_after_$s_$l")
-                append!(las, "las_partial_after_$s_$l")
+                append!(cam, "cam_partial_after_$(s)_$(l)")
+                append!(las, "las_partial_after_$(s)_$(l)")
             end
 		end
 	end
     if nsamps_offset > 0 #add another positioner cycle because we have too many cam and las samples
         append!(pos, pos_cyc_name)
-        append!(cam, "extra_cyc", fill(false, nsamps_cycle-nsamps_offset))
+        append!(cam, "extra_cyc", fill(false, nsamps_cyc-nsamps_offset))
         append!(las, "extra_cyc")
-        append!(high_las, "extra_cychigh", fill(true, nsamps_cycle-nsamps_offset))
+        append!(high_las, "extra_cychigh", fill(true, nsamps_cyc-nsamps_offset))
     end
     @assert length(pos) == length(cam) == length(las) == length(high_las)
     return [pos; cam; las; high_las]
