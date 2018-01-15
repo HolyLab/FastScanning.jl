@@ -68,7 +68,6 @@ end
 
 #given a measured piezo cycle, a set of desired slice locations `slice_zs`, and a set of forward and reverse lags,
 #return a tuple (cam_samps, las_samps, shift) with sample vectors for controlling camera exposure and laser pulsing
-#TODO: this isn't getting used
 function get_cyc_pulses(mon_cyc, slice_zs, fwd_lags, back_lags, exp_time, flash_time, sample_rate::HasInverseTimeUnits)
 	nsamps_exp = ImagineInterface.calc_num_samps(exp_time, sample_rate)
 	nsamps_flash = ImagineInterface.calc_num_samps(flash_time, sample_rate)
@@ -136,6 +135,50 @@ function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_tim
     append!(cam, "cam_template", cam_cyc)
     append!(las, "las_template", flash_cyc)
     append!(high_las, "highlas_template", trues(length(mod_cyc)))
+end
+
+function multistack_bidi(cam_name, las_name, pos_name, pos_cyc, mon_cyc, nstacks_fwd, slice_zs, fwd_toffsets, back_toffsets, exp_time, flash_time, sample_rate, ncycs_warmup)
+	ocpi2 = rigtemplate("ocpi-2")
+	pos_new = getname(ocpi2, pos_name)
+	cam_new = getname(ocpi2, cam_name)
+	las_new = getname(ocpi2, "all lasers")
+	high_las_new = getname(ocpi2, las_name)
+
+	EmpiricalTiming.append_warmup!(pos_new, cam_new, las_new, high_las_new, pos_cyc, ncycs_warmup)
+
+    @show nsamps_offset = ImagineAnalyses.mon_delay(pos_cyc, mon_cyc)
+	#temporal shift to make calculations easier (will shift things back later)
+    mon_cyc = circshift(mon_cyc, -nsamps_offset)
+	if nsamps_offset < 0
+		error("can't handle negative offset")
+	elseif nsamps_offset > 0
+		append!(las_new, "delay", fill(false, nsamps_offset))
+		append!(cam_new, "delay")
+		append!(high_las_new, "delayhigh", fill(true, nsamps_offset))
+	end
+	cam_samps, las_samps, shift = get_cyc_pulses(mon_cyc, slice_zs, fwd_toffsets, back_toffsets, exp_time, flash_time, sample_rate)
+	@assert shift == 0 #TODO: handle this
+
+	nsamps_cyc = length(pos_cyc)
+	pos_cyc_name = "pos_cyc"
+	add_sequence!(pos_new, pos_cyc_name, pos_cyc)
+	add_sequence!(cam_new, "cam_cyc", cam_samps)
+	add_sequence!(las_new, "las_cyc", las_samps)
+	add_sequence!(high_las_new, "high_cyc", trues(nsamps_cyc))
+
+	for i = 1:nstacks_fwd
+		append!(pos_new, "pos_cyc")
+		append!(cam_new, "cam_cyc")
+		append!(las_new, "las_cyc")
+		append!(high_las_new, "high_cyc")
+	end
+    if nsamps_offset > 0 #add another positioner cycle because we have too many cam and las samples
+        append!(pos_new, pos_cyc_name)
+        append!(cam_new, "extra_cyc", fill(false, nsamps_cyc-nsamps_offset))
+        append!(las_new, "extra_cyc")
+        append!(high_las_new, "extra_cychigh", fill(true, nsamps_cyc-nsamps_offset))
+    end
+	return [pos_new; cam_new; las_new; high_las_new]
 end
 
 function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, lags, slice_zs) where {T1<:ImagineSignal}
