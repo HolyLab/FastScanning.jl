@@ -138,7 +138,7 @@ function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_tim
 end
 
 function multistack_bidi(cam_name, las_name, pos_name, pos_cyc, mon_cyc, nstacks_fwd, slice_zs, fwd_toffsets, back_toffsets, exp_time, flash_time, sample_rate, ncycs_warmup)
-	ocpi2 = rigtemplate("ocpi-2")
+	ocpi2 = rigtemplate("ocpi-2"; sample_rate = sample_rate)
 	pos_new = getname(ocpi2, pos_name)
 	cam_new = getname(ocpi2, cam_name)
 	las_new = getname(ocpi2, "all lasers")
