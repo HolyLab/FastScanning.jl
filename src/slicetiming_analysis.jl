@@ -23,7 +23,7 @@ end
 #NOTE: the timings returned here are additional offsets relative to any lag already applied with a Calibration when 
 #generating the command signals.
 
-function slicetimings(img, toffsets, mon_cyc, nslices::Int)
+function slicetimings(img, toffsets, mon_cyc, nslices::Int; allow_rotations=false)
     @assert ndims(img) == 3 # should be stored by Imagine as a 2D timeseries
     #first set of images is always the target / template image
     target = img[:,:,1:nslices]
@@ -38,12 +38,12 @@ function slicetimings(img, toffsets, mon_cyc, nslices::Int)
         @show i
         fixed = view(target, :, :, i)
         movfwd = view(fwdimgs, :, :, (i-1)*(ntrials*ntoffsets)+1:i*(ntrials*ntoffsets))
-        ftfms, fmms = toffset_fits(fixed, movfwd, toffsets)
+        ftfms, fmms = toffset_fits(fixed, movfwd, toffsets; allow_rotations = allow_rotations)
         @show fwd_toffset = toffsets[indmin(fmms)]
         @show fwd_mm = minimum(fmms)
         push!(fwd_timings, fwd_toffset)
         movback = view(backimgs, :, :, (i-1)*(ntrials*ntoffsets)+1:i*(ntrials*ntoffsets))
-        btfms, bmms = toffset_fits(fixed, movback, toffsets)
+        btfms, bmms = toffset_fits(fixed, movback, toffsets; allow_rotations = allow_rotations)
         @show back_toffset = toffsets[indmin(bmms)]
         @show back_mm = minimum(bmms)
         push!(back_timings, back_toffset)
@@ -52,29 +52,35 @@ function slicetimings(img, toffsets, mon_cyc, nslices::Int)
     return fwd_timings, back_timings
 end
 
-function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0))
-    maxradians = pi/90
-    rgridsz = 7
+function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0), allow_rotations =false)
     mxshift = (16,16)
     moving = imfilter(Float64.(moving), KernelFactors.IIRGaussian(Float64, sigmas))
     fixed = imfilter(Float64.(fixed), KernelFactors.IIRGaussian(Float64, sigmas))
-    alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
-    mon = monitor(alg, ())
-    mon[:tform] = nothing
-    mon[:mismatch] = 0.0
-    mon = driver(alg, moving, mon)
-    return mon[:tform], mon[:mismatch]
+    if allow_rotations
+        maxradians = pi/180
+        rgridsz = 7
+        alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
+        mon = monitor(alg, ())
+        mon[:tform] = nothing
+        mon[:mismatch] = 0.0
+        mon = driver(alg, moving, mon)
+        return mon[:tform], mon[:mismatch]
+    else
+		thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
+		shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=-1)
+        return tformtranslate([shft...]), mm
+	end
 end
 
 #consistent per-slice.  It depends on so many factors that we just do it emprically.
-function toffset_fits(target, testimgs, toffsets; sigmas=(1.0,1.0))
+function toffset_fits(target, testimgs, toffsets; sigmas=(1.0,1.0), allow_rotations = false)
     ntoffsets = length(toffsets)
     ntrials = convert(Int, size(testimgs,3) / ntoffsets)
     tfms = AffineTransform[]
     mms = Float64[]
     for i = 1:length(toffsets)
         moving = squeeze(mean(Float64.(view(testimgs, :, :, (i-1)*ntrials+1:i*ntrials)), 3),3)
-        tfm, mm = align2d(target, moving; sigmas=sigmas)
+        tfm, mm = align2d(target, moving; sigmas=sigmas, allow_rotations=allow_rotations)
         push!(tfms, tfm)
         push!(mms, mm)
 	end
