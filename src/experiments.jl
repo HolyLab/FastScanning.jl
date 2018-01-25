@@ -1,4 +1,4 @@
-#reads piezo monitor samples from recs and returns an imagine procedure with the following attributes:
+#slicetiming_experiment runs a pilot piezo-only recording, reads piezo monitor samples, and returns an imagine procedure with the following attributes:
 #The SignalGenerator generates command signals with two phases:
 #   Phase 1:  A slow (0.2Hz) stack is acquired with camera and laser pulses timed to match target z locations determined by z_spacing.
 #   Phase 2:  Many piezo cycles with two camera and laser pulses per cycle.  The piezo cycle is taken from the recs input.
@@ -6,9 +6,22 @@
 #The process function expects the recorded signals from the above commands as inputs, and it outputs time indices indicating when to time slices so that z location
 #when imaging fast matches the location of images from the template stack of phase 1 above.
 #Optionally pass a Calibration to be applied to the piezo MON signal before doing all this (if, for example, you know the constant lag in the MON output)
-#TODO:make another method that runs the pilot positioner command and then passes the recorded MON signal in the `recs` argument
-#   The signature for that method:
-#   function slicetiming_experiment(pos_name, las_name::AbstractString, cam_name::AbstractString, freq, z_start, z_stop, z_spacing::HasLengthUnits, z_pad::HasLengthUnits; cal = Calibration())
+function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz, cal=-1)
+    mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate)...)
+    return slicetiming_experiment(out_bname, rig, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ncycs_mean, sample_rate=sample_rate, cal=cal)
+end
+
+function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ceil(Int, 20.0/ustrip(length(mod_cyc)*sample_rate)), sample_rate = 100000Hz, cal=-1)
+    coms0 = pos_commands(rig, pos_name, mod_cyc, ncycs_mean; sample_rate =sample_rate)
+    pos = getpositioners(coms0)
+    pos_mon = getpositionermonitors(coms0)
+    #run commands
+    warn("This method must be run on the microscope computer while the piezo is on and connected (both MON and MOD connections)")
+    write_commands(out_bname * "_piezo_only.json", [pos; pos_mon], 0, 0, 0.01s; exp_trig_mode = ["External Start"], isbidi=true, skip_validation=true)
+    recs = Imagine.run_imagine(out_bname * "_piezo_only", [pos; pos_mon]; ai_trig_dest = "PFI2", ao_trig_dest = "PFI1", trigger_source = "Port2/Line0", skip_validation = true)
+    return slicetiming_experiment([pos; pos_mon], recs, las_name, cam_name, z_spacing, z_pad; cal = cal)
+end
+
 function slicetiming_experiment(coms, recs, las_name::AbstractString, cam_name::AbstractString, z_spacing::HasLengthUnits, z_pad::HasLengthUnits; cal = -1)
     pos, pos_mon = pos_mod_mon(coms, recs)
     if cal == -1
@@ -29,7 +42,7 @@ end
 
 function slicetiming_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractString, cam_name::AbstractString, slice_zs)
     #@show lags = [0.0002s:0.00005s:0.0007s...]  #These worked to find the lag on the analog piezo of OCPI2
-    @show lags = [0.0000s:0.00005s:0.0012s...] #These worked to find the lag on the digital piezo of OCPI2
+    @show lags = [0.0000s:0.00005s:0.0015s...] #These worked to find the lag on the digital piezo of OCPI2
     gen_desc = "Generate a set camera and laser commands to find slice timings empirically given a completed dynamic positioner recording"
     sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, lags, slice_zs))
     desc = "Returns slice timings to align forward and reverse stacks at the desired spacing for high-speed volume acquisitions"

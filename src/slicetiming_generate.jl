@@ -14,7 +14,8 @@ function pos_commands(pos::ImagineSignal, one_cyc::Vector, ncycles=ceil(Int, 20.
         append!(cam, "quiet")
         append!(las, "quiet")
     end
-    return [pos;cam;las]
+    pos_mon = getname(rig_sigs, monitor_name(pos))
+    return [pos;cam;las;pos_mon]
 end
 
 function pos_commands(rig::AbstractString, pos_name::AbstractString, pstart, pstop, stack_rate, ncycles=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz)

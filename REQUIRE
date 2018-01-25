@@ -2,6 +2,7 @@ julia 0.6
 Unitful
 AxisArrays
 Images
+Imagine
 ImagineInterface
 ImagineProcedures
 ImagineCalibrate
