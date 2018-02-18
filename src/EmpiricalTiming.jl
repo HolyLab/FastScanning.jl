@@ -11,6 +11,6 @@ include("bsearch.jl")
 include("slicetiming_generate.jl")
 include("experiments.jl")
 
-export get_cyc_pulses, pos_mon_lag_experiment, slicetiming_experiment
+export default_toffsets, get_cyc_pulses, pos_mon_lag_experiment, slicetiming_experiment
 
 end # module
