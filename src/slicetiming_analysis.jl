@@ -66,8 +66,8 @@ function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0), allow_rotation
         mon = driver(alg, moving, mon)
         return mon[:tform], mon[:mismatch]
     else
-		thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
-		shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=-1)
+        thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
+        shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())
         return tformtranslate([shft...]), mm
 	end
 end

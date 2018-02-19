@@ -7,7 +7,7 @@
 #when imaging fast matches the location of images from the template stack of phase 1 above.
 #Optionally pass a Calibration to be applied to the piezo MON signal before doing all this (if, for example, you know the constant lag in the MON output)
 
-default_toffsets() = [0.0s:0.00005s:0.0022s...]
+default_toffsets() = [0.0002s:0.00005s:0.002s...]
 
 function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets())
     mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate)...)

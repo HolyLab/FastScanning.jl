@@ -1,7 +1,7 @@
 #Generate an ouput ImagineSignal for commanding the piezo to repeat the sample sequence `one_cyc` `ncycles` times.
 #Appends those samples to `pos` and also returns dummy camera and laser signals so that Imagine doesn't complain
 #`ncycles` default to 20 about seconds-worth of cycles based on the sample rate of `pos`
-function pos_commands(pos::ImagineSignal, one_cyc::Vector, ncycles=ceil(Int, 20.0 / ustrip(inv(samprate(pos))*length(one_cyc))))
+function pos_commands(pos::ImagineSignal, one_cyc, ncycles=ceil(Int, 20.0 / ustrip(inv(samprate(pos))*length(one_cyc))))
     @assert isempty(pos)
     rig_sigs = rigtemplate(rig_name(pos); sample_rate = samprate(pos))
     add_sequence!(pos, "bidi_cycle", one_cyc)
@@ -194,7 +194,7 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
     #We want to deliver the laser pulse during the global shutter time (tglobal in PCO camera manual)
     #If the user images with full chip then the global exposure segment doesn't begin until _10ms_ after the exposure starts.
     #Therefore with a 1ms laser pulse we need an 11ms exposure time, and the pulse is placed in the last 1ms 
-    exp_time = 0.0030s
+    exp_time = 0.0020s
     flash_time = 0.0005s
     empty!(pos)
 	if nsamps_offset < 0
