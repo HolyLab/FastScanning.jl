@@ -1,8 +1,8 @@
 module EmpiricalTiming
 
-using Unitful, Imagine, ImagineInterface, ImagineAnalyses, ImagineProcedures, Images, AffineTransforms, CoordinateTransformations, ProgressMeter
+using Unitful, Imagine, ImagineInterface, ImagineAnalyses, ImagineProcedures, Images, AffineTransforms, CoordinateTransformations, ProgressMeter, FixedPointNumbers
 using BlockRegistrationScheduler #for tweaking imperfect 2D alignment of slices
-using BlockRegistration, RegisterOptimize
+using BlockRegistration, RegisterOptimize, RegisterMismatch
 
 import Unitful:s, Hz, μm, V
 

@@ -190,12 +190,12 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
     @show nsamps_offset = ImagineAnalyses.mon_delay(mod_cyc, mon_cyc)
 	#temporal shift to make calculations easier (will shift things back later)
     mon_cyc = circshift(mon_cyc, -nsamps_offset)
-    ntrials=1 #number of trials per lag value per z slice
+    ntrials=10 #number of trials per lag value per z slice
     #We want to deliver the laser pulse during the global shutter time (tglobal in PCO camera manual)
     #If the user images with full chip then the global exposure segment doesn't begin until _10ms_ after the exposure starts.
     #Therefore with a 1ms laser pulse we need an 11ms exposure time, and the pulse is placed in the last 1ms 
-    exp_time = 0.0020s
-    flash_time = 0.0005s
+    exp_time = 0.002s
+    flash_time = 0.001s
     empty!(pos)
 	if nsamps_offset < 0
 		error("Cannot handle negative offset (but could with a bit more coding work)")
