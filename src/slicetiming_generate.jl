@@ -115,7 +115,7 @@ function get_cyc_pulses(mon_cyc, slice_zs, fwd_lags, back_lags, exp_time, flash_
     return cam_samps, las_samps, shift #shift is the shift that should be applied to sample vectors to get them into proper alignment
 end
 
-function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_time; freq=0.2Hz) #appends a stack sequence to each signal input. Images only on the forward sweep.
+function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_time; freq=0.1Hz) #appends a stack sequence to each signal input. Images only on the forward sweep.
     #pad by 5μm if we have room
     z_min = minimum(slice_zs)
     z_max = maximum(slice_zs)
@@ -190,7 +190,7 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
     @show nsamps_offset = ImagineAnalyses.mon_delay(mod_cyc, mon_cyc)
 	#temporal shift to make calculations easier (will shift things back later)
     mon_cyc = circshift(mon_cyc, -nsamps_offset)
-    ntrials=10 #number of trials per lag value per z slice
+    ntrials=1 #number of trials per lag value per z slice
     #We want to deliver the laser pulse during the global shutter time (tglobal in PCO camera manual)
     #If the user images with full chip then the global exposure segment doesn't begin until _10ms_ after the exposure starts.
     #Therefore with a 1ms laser pulse we need an 11ms exposure time, and the pulse is placed in the last 1ms 
