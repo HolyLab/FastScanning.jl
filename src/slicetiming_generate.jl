@@ -1,7 +1,7 @@
 #Generate an ouput ImagineSignal for commanding the piezo to repeat the sample sequence `one_cyc` `ncycles` times.
 #Appends those samples to `pos` and also returns dummy camera and laser signals so that Imagine doesn't complain
 #`ncycles` default to 20 about seconds-worth of cycles based on the sample rate of `pos`
-function pos_commands(pos::ImagineSignal, one_cyc::Vector, ncycles=ceil(Int, 20.0 / ustrip(inv(samprate(pos))*length(one_cyc))))
+function pos_commands(pos::ImagineSignal, one_cyc, ncycles=ceil(Int, 20.0 / ustrip(inv(samprate(pos))*length(one_cyc))))
     @assert isempty(pos)
     rig_sigs = rigtemplate(rig_name(pos); sample_rate = samprate(pos))
     add_sequence!(pos, "bidi_cycle", one_cyc)
@@ -14,7 +14,8 @@ function pos_commands(pos::ImagineSignal, one_cyc::Vector, ncycles=ceil(Int, 20.
         append!(cam, "quiet")
         append!(las, "quiet")
     end
-    return [pos;cam;las]
+    pos_mon = getname(rig_sigs, monitor_name(pos))
+    return [pos;cam;las;pos_mon]
 end
 
 function pos_commands(rig::AbstractString, pos_name::AbstractString, pstart, pstop, stack_rate, ncycles=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz)
@@ -114,7 +115,7 @@ function get_cyc_pulses(mon_cyc, slice_zs, fwd_lags, back_lags, exp_time, flash_
     return cam_samps, las_samps, shift #shift is the shift that should be applied to sample vectors to get them into proper alignment
 end
 
-function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_time; freq=0.2Hz) #appends a stack sequence to each signal input. Images only on the forward sweep.
+function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_time; freq=0.1Hz) #appends a stack sequence to each signal input. Images only on the forward sweep.
     #pad by 5μm if we have room
     z_min = minimum(slice_zs)
     z_max = maximum(slice_zs)
@@ -193,8 +194,8 @@ function slicetiming_commands!(pos::T1, mod_cyc, mon_cyc, las, high_las, cam, la
     #We want to deliver the laser pulse during the global shutter time (tglobal in PCO camera manual)
     #If the user images with full chip then the global exposure segment doesn't begin until _10ms_ after the exposure starts.
     #Therefore with a 1ms laser pulse we need an 11ms exposure time, and the pulse is placed in the last 1ms 
-    exp_time = 0.0030s
-    flash_time = 0.0005s
+    exp_time = 0.002s
+    flash_time = 0.001s
     empty!(pos)
 	if nsamps_offset < 0
 		error("Cannot handle negative offset (but could with a bit more coding work)")
