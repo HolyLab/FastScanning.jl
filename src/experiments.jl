@@ -48,7 +48,7 @@ function slicetiming_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractS
     gen_desc = "Generate a set camera and laser commands to find slice timings empirically given a completed dynamic positioner recording"
     sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, toffsets, slice_zs))
     desc = "Returns slice timings to align forward and reverse stacks at the desired spacing for high-speed volume acquisitions"
-    analyze_f = (coms, img) -> (slicetimings(img, toffsets, mon_cyc, length(slice_zs); allow_shifts=allow_shifts, allow_rotations=allow_rotations)..., slice_zs) #returns forward toffsets, backward toffsets, and the z locations of slices
+    analyze_f = (coms, img) -> (slicetimings(img, toffsets, length(slice_zs); allow_shifts=allow_shifts, allow_rotations=allow_rotations)..., slice_zs) #returns forward toffsets, backward toffsets, and the z locations of slices
     #analyze_f = (coms, img) -> calc_lag(coms, img, toffsets_pre, ncycs_ignore, mon_cyc, nsamps_offset)
     return ImagineProcedure(desc, sig_gen, analyze_f)
 end
@@ -65,7 +65,7 @@ function pos_mon_lag_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractS
     gen_desc = "Generate a set camera and laser commands to find piezo monitor lag empirically given a completed dynamic positioner recording"
     sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, toffsets, [pctr]))
     desc = "Returns mean of two measurements: the monitor lag when taking an image while sweeping forward and also while sweeping back"
-    analyze_f = (coms, img) -> mean(slicetimings(img, toffsets, mon_cyc, 1)) #take the mean of the forward and reverse lag (hopefully they are about equal)
+    analyze_f = (coms, img) -> mean(slicetimings(img, toffsets, 1)) #take the mean of the forward and reverse lag (hopefully they are about equal)
     return ImagineProcedure(desc, sig_gen, analyze_f)
 end
 

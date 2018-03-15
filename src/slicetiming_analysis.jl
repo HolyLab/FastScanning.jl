@@ -20,7 +20,6 @@ function mon_lag_nsamps(pos, pos_mon, ncycs_ignore)
     return ImagineAnalyses.mon_delay(pos_cycle, mean_cyc)
 end
 
-
 function local_minima(mms)
     min_is = Int[]
     if mms[2] > mms[1]
@@ -51,40 +50,72 @@ function ind_best_offset(mms; thresh_fac = 0.1)
     end
 end
 
+#imageseq is a 3D image array where each 2D slice is an image acquired for calibration
+#imageseq should be either forward or reverse slice trials, but not both (use exclude_fwd to separate)
+#The first (slow) stack should not be included in imgseq (use exclude_template_stack to get that one)
+get_slice_trials(imgseq, sliceidx, ntrials, ntoffsets) = view(imgseq, :, :, (sliceidx-1)*(ntrials*ntoffsets)+1:sliceidx*(ntrials*ntoffsets))
+exclude_template_stack(imgseq, nslices) = view(imgseq, :, :, (nslices+1):size(imgseq,3))
+get_template_stack(imgseq, nslices) = imgseq[:,:,1:nslices]
+#assumes template stack is excluded
+get_fwd_imgs(imgseq) = view(imgseq, :, :, 1:2:size(imgseq,3))
+get_bck_imgs(imgseq) = view(imgseq, :, :, 2:2:size(imgseq,3))
+
 #NOTE: the timings returned here are additional offsets relative to any lag already applied with a Calibration when 
 #generating the command signals.
 
-function slicetimings(img, toffsets, mon_cyc, nslices::Int; allow_shifts=true, allow_rotations=false)
+function slicetimings(img, toffsets, nslices::Int; allow_shifts=true, allow_rotations=false)
+    timings, mms, tfms = timings_mms_tfms(img, toffsets, nslices; allow_shifts=allow_shifts, allow_rotations=allow_rotations)
+    return timings
+end
+
+function timings_mms_tfms(img, toffsets, nslices; allow_shifts=true, allow_rotations=false, record_all=false)
     @assert ndims(img) == 3 # should be stored by Imagine as a 2D timeseries
     #first set of images is always the target / template image
-    target = img[:,:,1:nslices]
-    testimgs = view(img, :, :, (nslices+1):size(img,3))
-    fwdimgs = view(testimgs, :, :, 1:2:size(testimgs,3))
-    backimgs = view(testimgs, :, :, 2:2:size(testimgs,3))
+    target = get_template_stack(img, nslices)
+    testimgs = exclude_template_stack(img, nslices)
+    fwdimgs = get_fwd_imgs(testimgs)
+    backimgs = get_bck_imgs(testimgs)
+    timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_shifts=allow_shifts, allow_rotations=allow_rotations, record_all=record_all)
+end
+
+#Setting record_all will return arrays-of-arrays of mismatches and transforms (one for each condition) rather than just the best
+function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_shifts=true, allow_rotations=false, record_all=false)
     ntoffsets =length(toffsets)
     ntrials = convert(Int, size(fwdimgs,3) / (ntoffsets*nslices))
     fwd_timings = eltype(toffsets)[]
     back_timings = eltype(toffsets)[]
+    fwd_tfms = back_tfms = fwd_mms = back_mms = []
     @showprogress for i = 1:nslices
         @show i
         fixed = view(target, :, :, i)
-        movfwd = view(fwdimgs, :, :, (i-1)*(ntrials*ntoffsets)+1:i*(ntrials*ntoffsets))
+        movfwd = get_slice_trials(fwdimgs, i, ntrials, ntoffsets)
         ftfms, fmms = toffset_fits(fixed, movfwd, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations)
         #fwdi = ind_best_offset(fmms)
         fwdi = indmin(fmms)
         @show fwd_toffset = toffsets[fwdi]
         @show fwd_mm = fmms[fwdi]
         push!(fwd_timings, fwd_toffset)
-        movback = view(backimgs, :, :, (i-1)*(ntrials*ntoffsets)+1:i*(ntrials*ntoffsets))
+        movback = get_slice_trials(backimgs, i, ntrials, ntoffsets)
         btfms, bmms = toffset_fits(fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations = allow_rotations)
         #backi = ind_best_offset(bmms)
         backi = indmin(bmms)
         @show back_toffset = toffsets[backi]
         @show back_mm = bmms[backi]
         push!(back_timings, back_toffset)
+        if record_all
+            push!(fwd_tfms, ftfms)
+            push!(back_tfms, btfms)
+            push!(fwd_mms, fmms)
+            push!(back_mms, bmms)
+        else
+            push!(fwd_tfms, ftfms[fwdi])
+            push!(back_tfms, btfms[backi])
+            push!(fwd_mms, fwd_mm)
+            push!(back_mms, back_mm)
+        end
         print("Slice $i complete\n")
     end
-    return fwd_timings, back_timings
+    return (fwd_timings, back_timings), (fwd_mms, back_mms), (fwd_tfms, back_tfms)
 end
 
 function preprocess(img::AbstractArray{Float64,2}; sigmas=(1.0,1.0), sqrt_tfm=true, bias=Float64(reinterpret(N0f16, UInt16(100))))
@@ -102,13 +133,16 @@ function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0), allow_shifts =
     moving = preprocess(moving; sigmas=sigmas, sqrt_tfm=false)
     if allow_rotations
         maxradians = pi/180
-        rgridsz = 7
-        alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
-        mon = monitor(alg, ())
-        mon[:tform] = nothing
-        mon[:mismatch] = 0.0
-        mon = driver(alg, moving, mon)
-        return mon[:tform], mon[:mismatch]
+        thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
+        tfm, mm = qd_rigid(fixed, moving, mxshift, [maxradians], [pi/10000]; thresh=thresh, tfm0=IdentityTransformation())
+        return tfm, mm
+#        rgridsz = 7
+#        alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
+#        mon = monitor(alg, ())
+#        mon[:tform] = nothing
+#        mon[:mismatch] = 0.0
+#        mon = driver(alg, moving, mon)
+#        return mon[:tform], mon[:mismatch]
     elseif allow_shifts
         thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
         shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())
@@ -123,7 +157,7 @@ end
 function toffset_fits(target, testimgs, toffsets; sigmas=(1.0,1.0), allow_shifts=true, allow_rotations = false)
     ntoffsets = length(toffsets)
     ntrials = convert(Int, size(testimgs,3) / ntoffsets)
-    tfms = AffineTransform[]
+    tfms = []
     mms = Float64[]
     target = preprocess(Float64.(target); sigmas=sigmas, sqrt_tfm=false)
     for i = 1:length(toffsets)
