@@ -84,7 +84,7 @@ function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_sh
     ntrials = convert(Int, size(fwdimgs,3) / (ntoffsets*nslices))
     fwd_timings = eltype(toffsets)[]
     back_timings = eltype(toffsets)[]
-    fwd_tfms = back_tfms = fwd_mms = back_mms = []
+    fwd_tfms = []; back_tfms = []; fwd_mms = []; back_mms = []
     @showprogress for i = 1:nslices
         @show i
         fixed = view(target, :, :, i)
@@ -129,7 +129,7 @@ function preprocess(img::AbstractArray{Float64,2}; sigmas=(1.0,1.0), sqrt_tfm=tr
 end
 
 function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0), allow_shifts = true, allow_rotations =false)
-    mxshift = (16,16)
+    mxshift = (8,8)
     moving = preprocess(moving; sigmas=sigmas, sqrt_tfm=false)
     if allow_rotations
         maxradians = pi/180
@@ -153,17 +153,26 @@ function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0), allow_shifts =
     end
 end
 
+#get_offset_trials returns the set of trials at a particular temporal offset
+#Assumes that img_seq:
+#   -does not include the slow "target" stack
+#   -includes only forward or reverse images, not both
+#   -includes data for only one slice
+#(This means img_seq has size ntrials * ntoffsets in dimension 3)
+get_toffset_trials(img_seq, itoffset, ntrials) = view(img_seq, :, :, (itoffset-1)*ntrials+1:itoffset*ntrials)
+
 #consistent per-slice.  It depends on so many factors that we just do it emprically.
-function toffset_fits(target, testimgs, toffsets; sigmas=(1.0,1.0), allow_shifts=true, allow_rotations = false)
-    ntoffsets = length(toffsets)
+function toffset_fits(target, testimgs, toffsets::Vector; sigmas=(1.0,1.0), allow_shifts=true, allow_rotations = false)
+    ntoffsets = length(toffsets)::Int
     ntrials = convert(Int, size(testimgs,3) / ntoffsets)
     tfms = []
     mms = Float64[]
     target = preprocess(Float64.(target); sigmas=sigmas, sqrt_tfm=false)
+    #Threads.@threads for i = 1:length(toffsets)  #Currently segfaults on julia 0.6.2
     for i = 1:length(toffsets)
-        moving = squeeze(mean(Float64.(view(testimgs, :, :, (i-1)*ntrials+1:i*ntrials)), 3),3)
+        moving = squeeze(mean(Float64.(get_toffset_trials(testimgs, i, ntrials)), 3),3)
         tfm, mm = align2d(target, moving; sigmas=sigmas, allow_shifts=allow_shifts, allow_rotations=allow_rotations)
-        @show mm
+        #@show mm
         push!(tfms, tfm)
         push!(mms, mm)
     end
