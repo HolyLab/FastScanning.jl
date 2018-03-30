@@ -55,7 +55,7 @@ end
 
 #Similar to slicetiming_experiment but only checks one slice per stack, and uses the result to estimate the lag between the piezo's true position and the MON signal
 #function pos_mon_lag_experiment(pos::ImagineSignal, mon_cyc::ImagineSignal, las_name::AbstractString, cam_name::AbstractString, slice_zs)
-
+#WARNING This function probably shouldn't be used. Use slicetiming_experiment instead
 function pos_mon_lag_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractString, cam_name::AbstractString)
     #set pmin and pmax empirically
     pmin = minimum(mon_cyc)

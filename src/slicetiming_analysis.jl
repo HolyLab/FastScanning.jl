@@ -82,38 +82,71 @@ end
 function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_shifts=true, allow_rotations=false, record_all=false)
     ntoffsets =length(toffsets)
     ntrials = convert(Int, size(fwdimgs,3) / (ntoffsets*nslices))
+
     fwd_timings = eltype(toffsets)[]
     back_timings = eltype(toffsets)[]
     fwd_tfms = []; back_tfms = []; fwd_mms = []; back_mms = []
-    @showprogress for i = 1:nslices
-        @show i
-        fixed = view(target, :, :, i)
-        movfwd = get_slice_trials(fwdimgs, i, ntrials, ntoffsets)
-        ftfms, fmms = toffset_fits(fixed, movfwd, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations)
-        #fwdi = ind_best_offset(fmms)
-        fwdi = indmin(fmms)
-        @show fwd_toffset = toffsets[fwdi]
-        @show fwd_mm = fmms[fwdi]
-        push!(fwd_timings, fwd_toffset)
-        movback = get_slice_trials(backimgs, i, ntrials, ntoffsets)
-        btfms, bmms = toffset_fits(fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations = allow_rotations)
-        #backi = ind_best_offset(bmms)
-        backi = indmin(bmms)
-        @show back_toffset = toffsets[backi]
-        @show back_mm = bmms[backi]
-        push!(back_timings, back_toffset)
-        if record_all
-            push!(fwd_tfms, ftfms)
-            push!(back_tfms, btfms)
-            push!(fwd_mms, fmms)
-            push!(back_mms, bmms)
-        else
-            push!(fwd_tfms, ftfms[fwdi])
-            push!(back_tfms, btfms[backi])
-            push!(fwd_mms, fwd_mm)
-            push!(back_mms, back_mm)
+
+    i_start = 1
+    i_stop = 0
+    nw = nworkers()
+    ws = workers()
+    if isodd(nw) && nw > 1
+        nw-=1
+        ws = ws[1:end-1]
+        warn("Using one less worker (must be even number)")
+    end
+    print("Computing with $(nw) worker processes\n")
+    #@showprogress for i = 1:nslices
+    while i_stop < nslices
+        i_start = i_stop+1
+        i_stop = min(nslices, i_stop+max(1, div(nw,2)))
+        idxs = i_start:i_stop
+        fwdrrs = []; bckrrs = [];
+        for i = 1:length(idxs)
+            widx_odd = 2*i-1
+            fixed = view(target, :, :, idxs[i])
+            movfwd = get_slice_trials(fwdimgs, idxs[i], ntrials, ntoffsets)
+            #launch on odd-numbered worker
+            push!(fwdrrs, remotecall(toffset_fits, ws[widx_odd], fixed, movfwd, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations))
+            movback = get_slice_trials(backimgs, idxs[i], ntrials, ntoffsets)
+            #launch on even-numbered worker if we have more than one worker
+            if nw > 1
+                push!(bckrrs, remotecall(toffset_fits, ws[widx_odd+1], fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations))
+            else
+                push!(bckrrs, remotecall(toffset_fits, ws[widx_odd], fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations))
+            end
         end
-        print("Slice $i complete\n")
+        #fetch them all and store important results
+        for i = 1:length(idxs)
+            ftfms, fmms = fetch(fwdrrs[i])
+            #fwdi = ind_best_offset(fmms)
+            fwdi = indmin(fmms)
+            @show fwd_toffset = toffsets[fwdi]
+            @show fwd_mm = fmms[fwdi]
+            push!(fwd_timings, fwd_toffset)
+
+            btfms, bmms = fetch(bckrrs[i])
+            #backi = ind_best_offset(bmms)
+            backi = indmin(bmms)
+            @show back_toffset = toffsets[backi]
+            @show back_mm = bmms[backi]
+            push!(back_timings, back_toffset)
+
+            if record_all
+                push!(fwd_tfms, ftfms)
+                push!(back_tfms, btfms)
+                push!(fwd_mms, fmms)
+                push!(back_mms, bmms)
+            else
+                push!(fwd_tfms, ftfms[fwdi])
+                push!(back_tfms, btfms[backi])
+                push!(fwd_mms, fwd_mm)
+                push!(back_mms, back_mm)
+            end
+            #print("Slice $(idxs[i]) complete\n")
+        end
+        print("------------------Finished $i_stop of $nslices slices-----------------------\n")
     end
     return (fwd_timings, back_timings), (fwd_mms, back_mms), (fwd_tfms, back_tfms)
 end
