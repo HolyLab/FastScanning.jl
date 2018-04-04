@@ -79,7 +79,7 @@ function timings_mms_tfms(img, toffsets, nslices; allow_shifts=true, allow_rotat
 end
 
 #Setting record_all will return arrays-of-arrays of mismatches and transforms (one for each condition) rather than just the best
-function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_shifts=true, allow_rotations=false, record_all=false)
+function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_shifts=true, subpixel=false, allow_rotations=false, record_all=false)
     ntoffsets =length(toffsets)
     ntrials = convert(Int, size(fwdimgs,3) / (ntoffsets*nslices))
 
@@ -108,13 +108,13 @@ function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_sh
             fixed = view(target, :, :, idxs[i])
             movfwd = get_slice_trials(fwdimgs, idxs[i], ntrials, ntoffsets)
             #launch on odd-numbered worker
-            push!(fwdrrs, remotecall(toffset_fits, ws[widx_odd], fixed, movfwd, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations))
+            push!(fwdrrs, remotecall(toffset_fits, ws[widx_odd], fixed, movfwd, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel))
             movback = get_slice_trials(backimgs, idxs[i], ntrials, ntoffsets)
             #launch on even-numbered worker if we have more than one worker
             if nw > 1
-                push!(bckrrs, remotecall(toffset_fits, ws[widx_odd+1], fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations))
+                push!(bckrrs, remotecall(toffset_fits, ws[widx_odd+1], fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel))
             else
-                push!(bckrrs, remotecall(toffset_fits, ws[widx_odd], fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations))
+                push!(bckrrs, remotecall(toffset_fits, ws[widx_odd], fixed, movback, toffsets; allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel))
             end
         end
         #fetch them all and store important results
@@ -161,12 +161,13 @@ function preprocess(img::AbstractArray{Float64,2}; sigmas=(1.0,1.0), sqrt_tfm=tr
     return output
 end
 
-function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0), allow_shifts = true, allow_rotations =false)
+align2d(fixed, moving; kwargs...) = align2d(fixed, Float64.(moving); kwargs...)
+function align2d(fixed, moving::AbstractMatrix{Float64}; thresh_fac=0.9, sigmas=(1.0,1.0), allow_shifts = true, allow_rotations =false, subpixel=false)
     mxshift = (8,8)
     moving = preprocess(moving; sigmas=sigmas, sqrt_tfm=false)
+    thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
     if allow_rotations
         maxradians = pi/180
-        thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
         tfm, mm = qd_rigid(fixed, moving, mxshift, [maxradians], [pi/10000]; thresh=thresh, tfm0=IdentityTransformation())
         return tfm, mm
 #        rgridsz = 7
@@ -177,9 +178,12 @@ function align2d(fixed, moving; thresh_fac=0.9, sigmas=(1.0,1.0), allow_shifts =
 #        mon = driver(alg, moving, mon)
 #        return mon[:tform], mon[:mismatch]
     elseif allow_shifts
-        thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
-        shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())
-        return tformtranslate([shft...]), mm
+        if !subpixel
+            shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())
+            return tformtranslate([shft...]), mm
+        else
+            return RegisterOptimize.qd_translate(fixed, moving, mxshift, thresh; rtol=0.0, fvalue=0.0, maxevals=200)
+        end
     else
         mm = mismatch0(fixed, moving; normalization=:intensity)
         return tformtranslate([0;0]), ratio(mm, 0.0)
@@ -195,7 +199,7 @@ end
 get_toffset_trials(img_seq, itoffset, ntrials) = view(img_seq, :, :, (itoffset-1)*ntrials+1:itoffset*ntrials)
 
 #consistent per-slice.  It depends on so many factors that we just do it emprically.
-function toffset_fits(target, testimgs, toffsets::Vector; sigmas=(1.0,1.0), allow_shifts=true, allow_rotations = false)
+function toffset_fits(target, testimgs, toffsets::Vector; sigmas=(1.0,1.0), allow_shifts=true, subpixel=false, allow_rotations = false)
     ntoffsets = length(toffsets)::Int
     ntrials = convert(Int, size(testimgs,3) / ntoffsets)
     tfms = []
@@ -204,7 +208,7 @@ function toffset_fits(target, testimgs, toffsets::Vector; sigmas=(1.0,1.0), allo
     #Threads.@threads for i = 1:length(toffsets)  #Currently segfaults on julia 0.6.2
     for i = 1:length(toffsets)
         moving = squeeze(mean(Float64.(get_toffset_trials(testimgs, i, ntrials)), 3),3)
-        tfm, mm = align2d(target, moving; sigmas=sigmas, allow_shifts=allow_shifts, allow_rotations=allow_rotations)
+        tfm, mm = align2d(target, moving; sigmas=sigmas, allow_shifts=allow_shifts, subpixel=subpixel, allow_rotations=allow_rotations)
         #@show mm
         push!(tfms, tfm)
         push!(mms, mm)
