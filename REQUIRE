@@ -1,10 +1,13 @@
 julia 0.6
-Unitful
-AxisArrays
-Images
+CoordinateTransformations 0.4.1 0.4.1+
+PaddedViews 0.3.0 0.3.0+
+Unitful 0.8.0 0.8.0+
+AxisArrays 0.2.1 0.2.1+
+Images 0.14.0 0.14.0+
+MappedArrays 0.0.7 0.0.7+
+ProgressMeter 0.5.6 0.5.6+
+BlockRegistrationScheduler
 Imagine
 ImagineInterface
 ImagineProcedures
 ImagineCalibrate
-BlockRegistrationScheduler
-ProgressMeter
