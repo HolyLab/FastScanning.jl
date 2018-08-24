@@ -68,14 +68,14 @@ function slicetimings(img, toffsets, nslices::Int; allow_shifts=true, allow_rota
     return timings
 end
 
-function timings_mms_tfms(img, toffsets, nslices; allow_shifts=true, allow_rotations=false, record_all=false)
+function timings_mms_tfms(img, toffsets, nslices; kwargs...)
     @assert ndims(img) == 3 # should be stored by Imagine as a 2D timeseries
     #first set of images is always the target / template image
     target = get_template_stack(img, nslices)
     testimgs = exclude_template_stack(img, nslices)
     fwdimgs = get_fwd_imgs(testimgs)
     backimgs = get_bck_imgs(testimgs)
-    timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_shifts=allow_shifts, allow_rotations=allow_rotations, record_all=record_all)
+    timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; kwargs...)
 end
 
 #Setting record_all will return arrays-of-arrays of mismatches and transforms (one for each condition) rather than just the best
@@ -168,7 +168,7 @@ function align2d(fixed, moving::AbstractMatrix{Float64}; thresh_fac=0.9, sigmas=
     thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
     if allow_rotations
         maxradians = pi/180
-        tfm, mm = qd_rigid(fixed, moving, mxshift, [maxradians], [pi/10000]; thresh=thresh, tfm0=IdentityTransformation())
+        tfm, mm = qd_rigid(fixed, moving, mxshift, [maxradians], [pi/10000]; thresh=thresh, initial_tfm=IdentityTransformation())
         return tfm, mm
 #        rgridsz = 7
 #        alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
