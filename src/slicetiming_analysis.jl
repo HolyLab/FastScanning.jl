@@ -60,11 +60,11 @@ get_template_stack(imgseq, nslices) = imgseq[:,:,1:nslices]
 get_fwd_imgs(imgseq) = view(imgseq, :, :, 1:2:size(imgseq,3))
 get_bck_imgs(imgseq) = view(imgseq, :, :, 2:2:size(imgseq,3))
 
-#NOTE: the timings returned here are additional offsets relative to any lag already applied with a Calibration when 
+#NOTE: the timings returned here are additional offsets relative to any lag already applied with a Calibration when
 #generating the command signals.
 
-function slicetimings(img, toffsets, nslices::Int; allow_shifts=true, allow_rotations=false)
-    timings, mms, tfms = timings_mms_tfms(img, toffsets, nslices; allow_shifts=allow_shifts, allow_rotations=allow_rotations)
+function slicetimings(img, toffsets, nslices::Int; allow_shifts=true, allow_rotations=false, subpixel=true)
+    timings, mms, tfms = timings_mms_tfms(img, toffsets, nslices; allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)
     return timings
 end
 
@@ -182,7 +182,7 @@ function align2d(fixed, moving::AbstractMatrix{Float64}; thresh_fac=0.9, sigmas=
             shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())
             return tformtranslate([shft...]), mm
         else
-            return RegisterOptimize.qd_translate(fixed, moving, mxshift, thresh; rtol=0.0, fvalue=0.0, maxevals=200)
+            return RegisterOptimize.qd_translate(fixed, moving, mxshift; thresh=thresh, rtol=0.0, fvalue=0.0, maxevals=200)
         end
     else
         mm = mismatch0(fixed, moving; normalization=:intensity)

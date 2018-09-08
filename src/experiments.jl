@@ -10,12 +10,12 @@
 #default_toffsets() = [0.0000s:0.00005s:0.002s...]
 default_toffsets() = [0.0000s:0.0001s:0.002s...]
 
-function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false)
+function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
     mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate)...)
-    return slicetiming_experiment(out_bname, rig, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ncycs_mean, sample_rate=sample_rate, cal=cal, toffsets=toffsets, allow_shifts=allow_shifts, allow_rotations=allow_rotations)
+    return slicetiming_experiment(out_bname, rig, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ncycs_mean, sample_rate=sample_rate, cal=cal, toffsets=toffsets, allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)
 end
 
-function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ceil(Int, 20.0/ustrip(length(mod_cyc)*sample_rate)), sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false)
+function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ceil(Int, 20.0/ustrip(length(mod_cyc)*sample_rate)), sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
     coms0 = pos_commands(rig, pos_name, mod_cyc, ncycs_mean; sample_rate =sample_rate)
     pos = getpositioners(coms0)
     pos_mon = getpositionermonitors(coms0)
@@ -23,10 +23,10 @@ function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, 
     warn("This method must be run on the microscope computer while the piezo is on and connected (both MON and MOD connections)")
     write_commands(out_bname * "_piezo_only.json", [pos; pos_mon], 0, 0, 0.01s; exp_trig_mode = ["External Start"], isbidi=true, skip_validation=true)
     recs = Imagine.run_imagine(out_bname * "_piezo_only", [pos; pos_mon]; ai_trig_dest = "PFI2", ao_trig_dest = "PFI1", trigger_source = "Port2/Line0", skip_validation = true)
-    return slicetiming_experiment([pos; pos_mon], recs, las_name, cam_name, z_spacing, z_pad; cal = cal, toffsets=toffsets, allow_shifts=allow_shifts, allow_rotations=allow_rotations)
+    return slicetiming_experiment([pos; pos_mon], recs, las_name, cam_name, z_spacing, z_pad; cal = cal, toffsets=toffsets, allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)
 end
 
-function slicetiming_experiment(coms, recs, las_name::AbstractString, cam_name::AbstractString, z_spacing::HasLengthUnits, z_pad::HasLengthUnits; cal = -1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false)
+function slicetiming_experiment(coms, recs, las_name::AbstractString, cam_name::AbstractString, z_spacing::HasLengthUnits, z_pad::HasLengthUnits; cal = -1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
     pos, pos_mon = pos_mod_mon(coms, recs)
     if cal == -1
         pos_mon_cal = pos_mon
@@ -41,14 +41,14 @@ function slicetiming_experiment(coms, recs, las_name::AbstractString, cam_name::
     pmin = minimum(mean_cyc)
     pmax = maximum(mean_cyc)
     slice_zs = ImagineInterface.slice_positions(pmin, pmax, z_spacing, z_pad)
-    slicetiming_experiment(pos, mean_cyc, las_name, cam_name, slice_zs; allow_shifts=allow_shifts, allow_rotations=allow_rotations, toffsets=toffsets)
+    slicetiming_experiment(pos, mean_cyc, las_name, cam_name, slice_zs; allow_shifts=allow_shifts, allow_rotations=allow_rotations, toffsets=toffsets, subpixel=subpixel)
 end
 
-function slicetiming_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractString, cam_name::AbstractString, slice_zs; toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false)
+function slicetiming_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractString, cam_name::AbstractString, slice_zs; toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
     gen_desc = "Generate a set camera and laser commands to find slice timings empirically given a completed dynamic positioner recording"
     sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, toffsets, slice_zs))
     desc = "Returns slice timings to align forward and reverse stacks at the desired spacing for high-speed volume acquisitions"
-    analyze_f = (coms, img) -> (slicetimings(img, toffsets, length(slice_zs); allow_shifts=allow_shifts, allow_rotations=allow_rotations)..., slice_zs) #returns forward toffsets, backward toffsets, and the z locations of slices
+    analyze_f = (coms, img) -> (slicetimings(img, toffsets, length(slice_zs); allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)..., slice_zs) #returns forward toffsets, backward toffsets, and the z locations of slices
     #analyze_f = (coms, img) -> calc_lag(coms, img, toffsets_pre, ncycs_ignore, mon_cyc, nsamps_offset)
     return ImagineProcedure(desc, sig_gen, analyze_f)
 end

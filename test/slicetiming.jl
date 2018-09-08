@@ -15,7 +15,7 @@ coms = EmpiricalTiming.pos_commands("ocpi-2", "axial piezo", pstart, pstop, stac
 pos = getpositioners(coms)[1]
 fake_samps = get_samples(pos)
 append!(pos_mon, "fake_samps", fake_samps) #perfect with no lag
-pr = slicetiming_experiment(coms, [pos_mon;], "488nm laser", "camera1", z_spacing, z_pad)
+pr = slicetiming_experiment(coms, [pos_mon;], "488nm laser", "camera1", z_spacing, z_pad; subpixel=false)
 st_coms = outputs(pr)
 
 lags = [0.0000s:0.0001s:0.002s...] #note: must match what's in experiments.jl
