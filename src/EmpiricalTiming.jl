@@ -7,7 +7,7 @@ using BlockRegistration, RegisterOptimize, RegisterMismatch
 import Unitful:s, Hz, μm, V
 
 include("slicetiming_analysis.jl")
-include("bsearch.jl")
+#include("bsearch.jl")
 include("slicetiming_generate.jl")
 include("experiments.jl")
 
