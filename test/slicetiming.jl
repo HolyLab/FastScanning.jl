@@ -1,8 +1,7 @@
 using EmpiricalTiming
-using Base.Test
+using Test
 using Unitful, AxisArrays, Images, ImagineInterface, ImagineProcedures
 import Unitful:s, Hz, μm
-using Base.Test
 
 ocpi2 = rigtemplate("ocpi-2")
 pos_mon = getname(ocpi2, "axial piezo monitor")

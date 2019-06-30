@@ -10,8 +10,8 @@
 #default_toffsets() = [0.0000s:0.00005s:0.002s...]
 default_toffsets() = [0.0000s:0.0001s:0.002s...]
 
-function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
-    mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate)...)
+function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); lp_cutoff=3.5*stackrate, sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
+    mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate; lp_cutoff=lp_cutoff)...)
     return slicetiming_experiment(out_bname, rig, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ncycs_mean, sample_rate=sample_rate, cal=cal, toffsets=toffsets, allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)
 end
 

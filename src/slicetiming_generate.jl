@@ -18,8 +18,9 @@ function pos_commands(pos::ImagineSignal, one_cyc, ncycles=ceil(Int, 20.0 / ustr
     return [pos;cam;las;pos_mon]
 end
 
-function pos_commands(rig::AbstractString, pos_name::AbstractString, pstart, pstop, stack_rate, ncycles=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz)
-    mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate)...)
+function pos_commands(rig::AbstractString, pos_name::AbstractString, pstart, pstop, stack_rate, ncycles=ceil(Int, 20.0/ustrip(inv(stack_rate)));
+                      sample_rate = 100000Hz, lp_cutoff=3.5*stack_rate)
+    mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate; lp_cutoff=lp_cutoff)...)
     return pos_commands(rig, pos_name, mod_cyc, ncycles; sample_rate = sample_rate)
 end
 
@@ -130,8 +131,8 @@ function append_template!(pos, cam, las, high_las, slice_zs, exp_time, flash_tim
     flash_cyc, cam_cyc, monshft = flash_cam_cycs(mod_cyc, mod_cyc, slice_zs, pad_nsamps, flash_time, exp_time, samprate(pos))
     #only take pictures on the forward sweep
     midpoint = div(length(flash_cyc),2) + 1
-    flash_cyc[midpoint:end] = false
-    cam_cyc[midpoint:end] = false
+    flash_cyc[midpoint:end] .= false
+    cam_cyc[midpoint:end] .= false
     append!(pos, "pos_template", mod_cyc)
     append!(cam, "cam_template", cam_cyc)
     append!(las, "las_template", flash_cyc)
