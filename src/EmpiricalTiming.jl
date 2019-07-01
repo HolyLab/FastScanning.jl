@@ -3,7 +3,7 @@ module EmpiricalTiming
 using Unitful, ImagineInterface, ImagineAnalyses, ImagineProcedures
 using Images, CoordinateTransformations, ProgressMeter, FixedPointNumbers, IntervalSets
 using Statistics, Distributed
-using RegisterQD, RegisterOptimize, RegisterMismatch
+using RegisterQD, RegisterMismatch
 using Requires
 
 import Unitful:s, Hz, μm, V
