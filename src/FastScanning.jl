@@ -1,4 +1,4 @@
-module EmpiricalTiming
+module FastScanning
 
 using Unitful, ImagineInterface, ImagineAnalyses, ImagineProcedures
 using Images, CoordinateTransformations, ProgressMeter, FixedPointNumbers, IntervalSets

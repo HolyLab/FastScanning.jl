@@ -146,7 +146,7 @@ function multistack_bidi(cam_name, las_name, pos_name, pos_cyc, mon_cyc, nstacks
 	las_new = getname(ocpi2, "all lasers")
 	high_las_new = getname(ocpi2, las_name)
 
-	EmpiricalTiming.append_warmup!(pos_new, cam_new, las_new, high_las_new, pos_cyc, ncycs_warmup)
+	FastScanning.append_warmup!(pos_new, cam_new, las_new, high_las_new, pos_cyc, ncycs_warmup)
 
     @show nsamps_offset = ImagineAnalyses.mon_delay(pos_cyc, mon_cyc)
 	#temporal shift to make calculations easier (will shift things back later)

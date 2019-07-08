@@ -1,4 +1,4 @@
-using EmpiricalTiming
+using FastScanning
 using Test
 using Unitful, AxisArrays, Images, ImagineInterface, ImagineProcedures
 import Unitful:s, Hz, μm
@@ -10,7 +10,7 @@ pstop = 115.0μm
 stack_rate = 10.0Hz
 z_spacing = 5.0μm
 z_pad = 5.0μm
-coms = EmpiricalTiming.pos_commands("ocpi-2", "axial piezo", pstart, pstop, stack_rate; sample_rate = 100000Hz)
+coms = FastScanning.pos_commands("ocpi-2", "axial piezo", pstart, pstop, stack_rate; sample_rate = 100000Hz)
 pos = getpositioners(coms)[1]
 fake_samps = get_samples(pos)
 append!(pos_mon, "fake_samps", fake_samps) #perfect with no lag
