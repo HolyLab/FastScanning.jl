@@ -1,8 +1,7 @@
 using EmpiricalTiming
-using Base.Test
+using Test
 using Unitful, AxisArrays, Images, ImagineInterface, ImagineProcedures
 import Unitful:s, Hz, μm
-using Base.Test
 
 ocpi2 = rigtemplate("ocpi-2")
 pos_mon = getname(ocpi2, "axial piezo monitor")
@@ -30,5 +29,15 @@ imgs = fake_slicetiming_run(nconditions, ntrials, nslices, best_conds_fwd, best_
 
 fwd_lags, back_lags, slice_zs2 = process(pr, imgs)
 #@assert slice_zs2.==slice_zs #not equal due to finite sample rate
+@test lags[best_conds_fwd] == fwd_lags
+@test lags[best_conds_back] == back_lags
+
+
+#### again with subpixel == true
+pr = slicetiming_experiment(coms, [pos_mon;], "488nm laser", "camera1", z_spacing, z_pad; subpixel=true)
+st_coms = outputs(pr)
+imgs = fake_slicetiming_run(nconditions, ntrials, nslices, best_conds_fwd, best_conds_back)
+
+fwd_lags, back_lags, slice_zs2 = process(pr, imgs)
 @test lags[best_conds_fwd] == fwd_lags
 @test lags[best_conds_back] == back_lags

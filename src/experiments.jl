@@ -10,20 +10,9 @@
 #default_toffsets() = [0.0000s:0.00005s:0.002s...]
 default_toffsets() = [0.0000s:0.0001s:0.002s...]
 
-function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
-    mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate)...)
+function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); lp_cutoff=3.5*stackrate, sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
+    mod_cyc = vcat(gen_bidi_pos(pstart, pstop, 1/stack_rate, sample_rate; lp_cutoff=lp_cutoff)...)
     return slicetiming_experiment(out_bname, rig, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ncycs_mean, sample_rate=sample_rate, cal=cal, toffsets=toffsets, allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)
-end
-
-function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ceil(Int, 20.0/ustrip(length(mod_cyc)*sample_rate)), sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
-    coms0 = pos_commands(rig, pos_name, mod_cyc, ncycs_mean; sample_rate =sample_rate)
-    pos = getpositioners(coms0)
-    pos_mon = getpositionermonitors(coms0)
-    #run commands
-    warn("This method must be run on the microscope computer while the piezo is on and connected (both MON and MOD connections)")
-    write_commands(out_bname * "_piezo_only.json", [pos; pos_mon], 0, 0, 0.01s; exp_trig_mode = ["External Start"], isbidi=true, skip_validation=true)
-    recs = Imagine.run_imagine(out_bname * "_piezo_only", [pos; pos_mon]; ai_trig_dest = "PFI2", ao_trig_dest = "PFI1", trigger_source = "Port2/Line0", skip_validation = true)
-    return slicetiming_experiment([pos; pos_mon], recs, las_name, cam_name, z_spacing, z_pad; cal = cal, toffsets=toffsets, allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)
 end
 
 function slicetiming_experiment(coms, recs, las_name::AbstractString, cam_name::AbstractString, z_spacing::HasLengthUnits, z_pad::HasLengthUnits; cal = -1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)

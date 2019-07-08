@@ -16,7 +16,7 @@ function mon_lag_nsamps(pos, pos_mon, ncycs_ignore)
     mon_samps = get_samples(pos_mon)
     mon_samps = view(mon_samps, (ncycs_ignore*nsamps_cycle+1):Base.length(mon_samps))
     cycs_mon = ImagineAnalyses.get_cycles(mon_samps, nsamps_cycle)
-    mean_cyc = mean(ustrip.(cycs_mon), 2)[:] * unit(mon_samps[1])
+    mean_cyc = mean(ustrip.(cycs_mon); dims=2)[:] * unit(mon_samps[1])
     return ImagineAnalyses.mon_delay(pos_cycle, mean_cyc)
 end
 
@@ -78,6 +78,15 @@ function timings_mms_tfms(img, toffsets, nslices; kwargs...)
     timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; kwargs...)
 end
 
+function safe_fetch(rr)
+    rslt = fetch(rr)
+    if isa(rslt, RemoteException)
+        throw(rslt)
+    else
+        return rslt
+    end
+end
+
 #Setting record_all will return arrays-of-arrays of mismatches and transforms (one for each condition) rather than just the best
 function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_shifts=true, subpixel=false, allow_rotations=false, record_all=false)
     ntoffsets =length(toffsets)
@@ -119,16 +128,16 @@ function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_sh
         end
         #fetch them all and store important results
         for i = 1:length(idxs)
-            ftfms, fmms = fetch(fwdrrs[i])
+            ftfms, fmms = safe_fetch(fwdrrs[i])
             #fwdi = ind_best_offset(fmms)
-            fwdi = indmin(fmms)
+            fwdi = argmin(fmms)
             @show fwd_toffset = toffsets[fwdi]
             @show fwd_mm = fmms[fwdi]
             push!(fwd_timings, fwd_toffset)
 
-            btfms, bmms = fetch(bckrrs[i])
+            btfms, bmms = safe_fetch(bckrrs[i])
             #backi = ind_best_offset(bmms)
-            backi = indmin(bmms)
+            backi = argmin(bmms)
             @show back_toffset = toffsets[backi]
             @show back_mm = bmms[backi]
             push!(back_timings, back_toffset)
@@ -151,7 +160,7 @@ function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_sh
     return (fwd_timings, back_timings), (fwd_mms, back_mms), (fwd_tfms, back_tfms)
 end
 
-function preprocess(img::AbstractArray{Float64,2}; sigmas=(1.0,1.0), sqrt_tfm=true, bias=Float64(reinterpret(N0f16, UInt16(100))))
+function preprocess(img::AbstractArray{Float64,2}; sigmas=(1.0,1.0,), sqrt_tfm=true, bias=Float64(reinterpret(N0f16, UInt16(100))))
     img = imfilter(img, KernelFactors.IIRGaussian(Float64, sigmas))
     output = similar(img)
     for i in eachindex(img)
@@ -162,13 +171,13 @@ function preprocess(img::AbstractArray{Float64,2}; sigmas=(1.0,1.0), sqrt_tfm=tr
 end
 
 align2d(fixed, moving; kwargs...) = align2d(fixed, Float64.(moving); kwargs...)
-function align2d(fixed, moving::AbstractMatrix{Float64}; thresh_fac=0.9, sigmas=(1.0,1.0), allow_shifts = true, allow_rotations =false, subpixel=false)
-    mxshift = (8,8)
+function align2d(fixed, moving::AbstractMatrix{Float64}; thresh_fac=0.9, sigmas=(1.0,1.0,), allow_shifts = true, allow_rotations =false, subpixel=false)
+    mxshift = (8,8,)
     moving = preprocess(moving; sigmas=sigmas, sqrt_tfm=false)
     thresh = (1-thresh_fac) * sum(abs2.(fixed[.!(isnan.(fixed))]))
     if allow_rotations
         maxradians = pi/180
-        tfm, mm = qd_rigid(fixed, moving, mxshift, [maxradians], [pi/10000]; thresh=thresh, initial_tfm=IdentityTransformation())
+        tfm, mm = RegisterQD.qd_rigid(fixed, moving, mxshift, [maxradians], [pi/10000]; thresh=thresh, initial_tfm=IdentityTransformation())
         return tfm, mm
 #        rgridsz = 7
 #        alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
@@ -179,14 +188,14 @@ function align2d(fixed, moving::AbstractMatrix{Float64}; thresh_fac=0.9, sigmas=
 #        return mon[:tform], mon[:mismatch]
     elseif allow_shifts
         if !subpixel
-            shft, mm = RegisterOptimize.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())
-            return tformtranslate([shft...]), mm
+            shft, mm = RegisterQD.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())
+            return Translation(shft...), mm
         else
-            return RegisterOptimize.qd_translate(fixed, moving, mxshift; thresh=thresh, rtol=0.0, fvalue=0.0, maxevals=200)
+            return RegisterQD.qd_translate(fixed, moving, mxshift; thresh=thresh, rtol=0.0, fvalue=0.0, maxevals=200)
         end
     else
-        mm = mismatch0(fixed, moving; normalization=:intensity)
-        return tformtranslate([0;0]), ratio(mm, 0.0)
+        mm = RegisterMismatch.mismatch0(fixed, moving; normalization=:intensity)
+        return Translation(0.0,0.0), ratio(mm, 0.0)
     end
 end
 
@@ -207,7 +216,7 @@ function toffset_fits(target, testimgs, toffsets::Vector; sigmas=(1.0,1.0), allo
     target = preprocess(Float64.(target); sigmas=sigmas, sqrt_tfm=false)
     #Threads.@threads for i = 1:length(toffsets)  #Currently segfaults on julia 0.6.2
     for i = 1:length(toffsets)
-        moving = squeeze(mean(Float64.(get_toffset_trials(testimgs, i, ntrials)), 3),3)
+        moving = dropdims(mean(Float64.(get_toffset_trials(testimgs, i, ntrials)); dims=3); dims=3)
         tfm, mm = align2d(target, moving; sigmas=sigmas, allow_shifts=allow_shifts, subpixel=subpixel, allow_rotations=allow_rotations)
         #@show mm
         push!(tfms, tfm)

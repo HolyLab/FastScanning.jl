@@ -4,8 +4,7 @@ os:
   - linux
   - osx
 julia:
-  - 0.6
-  - nightly
+  - 1.1
 notifications:
   email: false
 git:
@@ -18,18 +17,25 @@ git:
 #  - julia: nightly
 
 ## uncomment and modify the following lines to manually install system packages
-#addons:
-#  apt: # apt-get for linux
-#    packages:
-#    - gfortran
-#before_script: # homebrew for mac
-#  - if [ $TRAVIS_OS_NAME = osx ]; then brew install gcc; fi
+addons:
+  apt:
+    packages:
+      - build-essential
+      - gfortran
+      - pkg-config
+      - hdf5-tools
 
 ## uncomment the following lines to override the default test script
-#script:
-#  - julia -e 'Pkg.clone(pwd()); Pkg.build("EmpiricalTiming"); Pkg.test("EmpiricalTiming"; coverage=true)'
+script:
+  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+  - julia ci_prep.jl
+  - julia -e 'using Pkg; Pkg.build(); Pkg.test("EmpiricalTiming"; coverage=true)'
 after_success:
   # push coverage results to Coveralls
-  - julia -e 'cd(Pkg.dir("EmpiricalTiming")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
+  #- julia -e 'cd(Pkg.dir("ImagineInterface")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
   # push coverage results to Codecov
-  - julia -e 'cd(Pkg.dir("EmpiricalTiming")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+  - julia -e 'import Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+  #- julia -e 'cd(Pkg.dir("ImagineInterface")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+  # update the documentation
+  #   - julia -e 'using Pkg; Pkg.add("Documenter")'
+    #  - julia -e 'using ImagineInterface; cd(dirname(dirname(pathof(ImagineInterface)))); ENV["DOCUMENTER_DEBUG"] = "true"; include(joinpath("docs", "make.jl"))'
