@@ -29,7 +29,7 @@ addons:
 script:
   - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
   - julia ci_prep.jl
-  - julia -e 'using Pkg; Pkg.build(); Pkg.test("EmpiricalTiming"; coverage=true)'
+  - julia -e 'using Pkg; Pkg.build(); Pkg.test("FastScanning"; coverage=true)'
 after_success:
   # push coverage results to Coveralls
   #- julia -e 'cd(Pkg.dir("ImagineInterface")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'

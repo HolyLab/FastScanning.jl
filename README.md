@@ -1,1 +1,1 @@
-# EmpiricalTiming
+# FastScanning.jl
