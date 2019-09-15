@@ -20,35 +20,35 @@ function mon_lag_nsamps(pos, pos_mon, ncycs_ignore)
     return ImagineAnalyses.mon_delay(pos_cycle, mean_cyc)
 end
 
-function local_minima(mms)
-    min_is = Int[]
-    if mms[2] > mms[1]
-        push!(mms, 1)
-    end
-    for i = 2:(length(mms)-1)
-        if mms[i-1] > mms[i] < mms[i+1]
-            push!(min_is, i)
-        end
-    end
-    if mms[end] < mms[end-1]
-        push!(min_is,length(mms))
-        warn("Found local minimum at the last temporal offset.  You should use a wider range of offsets")
-    end
-    return min_is
-end
-
-#Instead of just taking the lowest mismatch, find all local minima and take the highest-indexed minimum that satisfies thresh_fac
-function ind_best_offset(mms; thresh_fac = 0.1)
-    min_is = local_minima(mms)
-    min_mm = minimum(mms)
-    #thresh = min_mm + (maximum(mms) - min_mm) * thresh_fac
-    thresh = min_mm + min_mm * thresh_fac
-    for i = length(min_is):-1:1
-        if mms[min_is[i]] <= thresh
-            return min_is[i]
-        end
-    end
-end
+#function local_minima(mms)
+#    min_is = Int[]
+#    if mms[2] > mms[1]
+#        push!(mms, 1)
+#    end
+#    for i = 2:(length(mms)-1)
+#        if mms[i-1] > mms[i] < mms[i+1]
+#            push!(min_is, i)
+#        end
+#    end
+#    if mms[end] < mms[end-1]
+#        push!(min_is,length(mms))
+#        warn("Found local minimum at the last temporal offset.  You should use a wider range of offsets")
+#    end
+#    return min_is
+#end
+#
+##Instead of just taking the lowest mismatch, find all local minima and take the highest-indexed minimum that satisfies thresh_fac
+#function ind_best_offset(mms; thresh_fac = 0.1)
+#    min_is = local_minima(mms)
+#    min_mm = minimum(mms)
+#    #thresh = min_mm + (maximum(mms) - min_mm) * thresh_fac
+#    thresh = min_mm + min_mm * thresh_fac
+#    for i = length(min_is):-1:1
+#        if mms[min_is[i]] <= thresh
+#            return min_is[i]
+#        end
+#    end
+#end
 
 #imageseq is a 3D image array where each 2D slice is an image acquired for calibration
 #imageseq should be either forward or reverse slice trials, but not both (use exclude_fwd to separate)
@@ -106,7 +106,6 @@ function timings_mms_tfms(target, fwdimgs, backimgs, toffsets, nslices; allow_sh
         warn("Using one less worker (must be even number)")
     end
     print("Computing with $(nw) worker processes\n")
-    #@showprogress for i = 1:nslices
     while i_stop < nslices
         i_start = i_stop+1
         i_stop = min(nslices, i_stop+max(1, div(nw,2)))
@@ -179,13 +178,6 @@ function align2d(fixed, moving::AbstractMatrix{Float64}; thresh_fac=0.9, sigmas=
         maxradians = pi/180
         tfm, mm = RegisterQD.qd_rigid(fixed, moving, mxshift, [maxradians], [pi/10000]; thresh=thresh, initial_tfm=IdentityTransformation())
         return tfm, mm
-#        rgridsz = 7
-#        alg = RigidGridStart(fixed, maxradians, rgridsz, mxshift; thresh_fac=thresh_fac, print_level=0, max_iter=100)
-#        mon = monitor(alg, ())
-#        mon[:tform] = nothing
-#        mon[:mismatch] = 0.0
-#        mon = driver(alg, moving, mon)
-#        return mon[:tform], mon[:mismatch]
     elseif allow_shifts
         if !subpixel
             shft, mm = RegisterQD.best_shift(fixed, moving, mxshift, thresh; normalization=:intensity, initial_tfm=IdentityTransformation())

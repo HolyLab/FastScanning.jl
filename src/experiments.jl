@@ -7,7 +7,8 @@
 #when imaging fast matches the location of images from the template stack of phase 1 above.
 #Optionally pass a Calibration to be applied to the piezo MON signal before doing all this (if, for example, you know the constant lag in the MON output)
 
-#default_toffsets() = [0.0000s:0.00005s:0.002s...]
+#NOTE: the default values may need to be tweaked case-by-case
+#TODO: make this more robust
 default_toffsets() = [0.0000s:0.0001s:0.002s...]
 
 function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, pstart, pstop, stack_rate, z_spacing, z_pad, ncycs_mean=ceil(Int, 20.0/ustrip(inv(stack_rate))); lp_cutoff=3.5*stackrate, sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
@@ -38,32 +39,31 @@ function slicetiming_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractS
     sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, toffsets, slice_zs))
     desc = "Returns slice timings to align forward and reverse stacks at the desired spacing for high-speed volume acquisitions"
     analyze_f = (coms, img) -> (slicetimings(img, toffsets, length(slice_zs); allow_shifts=allow_shifts, allow_rotations=allow_rotations, subpixel=subpixel)..., slice_zs) #returns forward toffsets, backward toffsets, and the z locations of slices
-    #analyze_f = (coms, img) -> calc_lag(coms, img, toffsets_pre, ncycs_ignore, mon_cyc, nsamps_offset)
     return ImagineProcedure(desc, sig_gen, analyze_f)
 end
 
-#Similar to slicetiming_experiment but only checks one slice per stack, and uses the result to estimate the lag between the piezo's true position and the MON signal
-#function pos_mon_lag_experiment(pos::ImagineSignal, mon_cyc::ImagineSignal, las_name::AbstractString, cam_name::AbstractString, slice_zs)
-#WARNING This function probably shouldn't be used. Use slicetiming_experiment instead
-function pos_mon_lag_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractString, cam_name::AbstractString)
-    #set pmin and pmax empirically
-    pmin = minimum(mon_cyc)
-    pmax = maximum(mon_cyc)
-    pctr = [(pmax-pmin)/2 * pmin]
-    @show toffsets = default_toffsets() #These worked to find the lag on the digital piezo of OCPI2
-    gen_desc = "Generate a set camera and laser commands to find piezo monitor lag empirically given a completed dynamic positioner recording"
-    sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, toffsets, [pctr]))
-    desc = "Returns mean of two measurements: the monitor lag when taking an image while sweeping forward and also while sweeping back"
-    analyze_f = (coms, img) -> mean(slicetimings(img, toffsets, 1)) #take the mean of the forward and reverse lag (hopefully they are about equal)
-    return ImagineProcedure(desc, sig_gen, analyze_f)
-end
-
-pos_mon_lag_experiment(coms, recs, las_name::AbstractString, cam_name::AbstractString) = pos_mon_lag_experiment(pos_mod_mon(coms,recs)..., las_name, cam_name)
-
-function pos_mon_lag_experiment(pos::ImagineSignal, pos_mon::ImagineSignal, las_name::AbstractString, cam_name::AbstractString)
-    mon_samps = get_samples(pos_mon)
-    nsamps_cycle = full_length(first(sequences(pos)))
-    ncycs_ignore = ceil(Int, (ustrip(samprate(pos))*5) / nsamps_cycle) #5 seconds of warmup
-    mon_cyc = mean_cycle(mon_samps, nsamps_cycle; start_idx = ncycs_ignore*nsamps_cycle+1)
-    pos_mon_lag_experiment(pos, mon_cyc, las_name, cam_name)
-end
+##Similar to slicetiming_experiment but only checks one slice per stack, and uses the result to estimate the lag between the piezo's true position and the MON signal
+##function pos_mon_lag_experiment(pos::ImagineSignal, mon_cyc::ImagineSignal, las_name::AbstractString, cam_name::AbstractString, slice_zs)
+##WARNING This function probably shouldn't be used. Use slicetiming_experiment instead
+#function pos_mon_lag_experiment(pos::ImagineSignal, mon_cyc, las_name::AbstractString, cam_name::AbstractString)
+#    #set pmin and pmax empirically
+#    pmin = minimum(mon_cyc)
+#    pmax = maximum(mon_cyc)
+#    pctr = [(pmax-pmin)/2 * pmin]
+#    @show toffsets = default_toffsets() #These worked to find the lag on the digital piezo of OCPI2
+#    gen_desc = "Generate a set camera and laser commands to find piezo monitor lag empirically given a completed dynamic positioner recording"
+#    sig_gen = SignalGenerator(gen_desc, slicetiming_commands, (pos, mon_cyc, las_name, cam_name, toffsets, [pctr]))
+#    desc = "Returns mean of two measurements: the monitor lag when taking an image while sweeping forward and also while sweeping back"
+#    analyze_f = (coms, img) -> mean(slicetimings(img, toffsets, 1)) #take the mean of the forward and reverse lag (hopefully they are about equal)
+#    return ImagineProcedure(desc, sig_gen, analyze_f)
+#end
+#
+#pos_mon_lag_experiment(coms, recs, las_name::AbstractString, cam_name::AbstractString) = pos_mon_lag_experiment(pos_mod_mon(coms,recs)..., las_name, cam_name)
+#
+#function pos_mon_lag_experiment(pos::ImagineSignal, pos_mon::ImagineSignal, las_name::AbstractString, cam_name::AbstractString)
+#    mon_samps = get_samples(pos_mon)
+#    nsamps_cycle = full_length(first(sequences(pos)))
+#    ncycs_ignore = ceil(Int, (ustrip(samprate(pos))*5) / nsamps_cycle) #5 seconds of warmup
+#    mon_cyc = mean_cycle(mon_samps, nsamps_cycle; start_idx = ncycs_ignore*nsamps_cycle+1)
+#    pos_mon_lag_experiment(pos, mon_cyc, las_name, cam_name)
+#end
