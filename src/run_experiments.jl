@@ -1,3 +1,5 @@
+#This code only gets loaded when the functionality of Imagine.jl is available (on a Windows machine with NIDAQmx installed)
+
 using Imagine
 
 function slicetiming_experiment(out_bname::AbstractString, rig::AbstractString, pos_name, las_name, cam_name, mod_cyc, z_spacing, z_pad; ncycs_mean=ceil(Int, 20.0/ustrip(length(mod_cyc)*sample_rate)), sample_rate = 100000Hz, cal=-1, toffsets = default_toffsets(), allow_shifts=true, allow_rotations=false, subpixel=true)
