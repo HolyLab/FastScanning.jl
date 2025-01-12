@@ -35,6 +35,7 @@ PaddedViews = "0.5"
 ProgressMeter = "1"
 RegisterQD = "0.2"
 Requires = "1"
+Statistics = "1"
 Unitful = "1"
 julia = "1"
 
